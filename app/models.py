@@ -15,6 +15,7 @@ class Transaction(Base):
     client_key: Mapped[str] = mapped_column(Text, unique=True, nullable=False)
     device_id: Mapped[str] = mapped_column(Text, nullable=False)
     uid: Mapped[str] = mapped_column(Text, nullable=False, index=True)
+    phone: Mapped[str | None] = mapped_column(Text, nullable=True)
     message_text: Mapped[str] = mapped_column(Text, nullable=False)
     time: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
     is_canceled: Mapped[bool] = mapped_column(Boolean, nullable=False)

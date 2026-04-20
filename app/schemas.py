@@ -9,6 +9,7 @@ class TransactionCreate(BaseModel):
     client_key: str
     device_id: str
     uid: str
+    phone: str
     message_text: str
     is_canceled: bool
     amount: int
@@ -21,6 +22,7 @@ class TransactionRead(BaseModel):
     client_key: str
     device_id: str
     uid: str
+    phone: str | None = None
     message_text: str
     time: datetime
     is_canceled: bool

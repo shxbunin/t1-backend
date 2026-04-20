@@ -26,6 +26,7 @@ def create_transaction(
         client_key=payload.client_key,
         device_id=payload.device_id,
         uid=payload.uid,
+        phone=payload.phone,
         message_text=payload.message_text,
         is_canceled=payload.is_canceled,
         amount=payload.amount,
