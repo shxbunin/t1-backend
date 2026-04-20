@@ -81,6 +81,18 @@ services:
       backend:
         ipv4_address: 172.30.0.2
 
+  db-proxy:
+    image: haproxy:3.0-alpine
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      wireguard:
+        condition: service_started
+    network_mode: "service:wireguard"
+    volumes:
+      - ./haproxy.cfg:/usr/local/etc/haproxy/haproxy.cfg:ro
+
 volumes:
   postgres_data:
   caddy_data:
