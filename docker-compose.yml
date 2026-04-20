@@ -82,7 +82,9 @@ services:
         ipv4_address: 172.30.0.2
 
   db-proxy:
-    image: alpine/socat:1.8.0.0-r3
+    build:
+      context: .
+      dockerfile: db-proxy.Dockerfile
     restart: unless-stopped
     depends_on:
       postgres:
