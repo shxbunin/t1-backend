@@ -15,7 +15,10 @@ services:
       timeout: 5s
       retries: 5
     ports:
-      - "${POSTGRES_PUBLIC_PORT}:5432"
+      - "127.0.0.1:${POSTGRES_LOCAL_PORT}:5432"
+    networks:
+      backend:
+        ipv4_address: 172.30.0.10
     volumes:
       - postgres_data:/var/lib/postgresql/data
 
@@ -28,6 +31,8 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+    networks:
+      - backend
 
   caddy:
     image: caddy:2.8-alpine
@@ -39,12 +44,50 @@ services:
     ports:
       - "80:80"
       - "443:443"
+    networks:
+      - backend
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy_data:/data
       - caddy_config:/config
 
+  wireguard:
+    image: lscr.io/linuxserver/wireguard:latest
+    restart: unless-stopped
+    cap_add:
+      - NET_ADMIN
+      - SYS_MODULE
+    env_file:
+      - .env
+    environment:
+      PUID: ${WG_PUID}
+      PGID: ${WG_PGID}
+      TZ: ${TZ}
+      SERVERURL: ${WG_HOST}
+      SERVERPORT: ${WG_PORT}
+      PEERS: ${WG_PEERS}
+      PEERDNS: ${WG_PEER_DNS}
+      INTERNAL_SUBNET: ${WG_INTERNAL_SUBNET}
+      ALLOWEDIPS: ${WG_ALLOWED_IPS}
+      LOG_CONFS: "true"
+    ports:
+      - "${WG_PORT}:${WG_PORT}/udp"
+    sysctls:
+      - net.ipv4.conf.all.src_valid_mark=1
+    volumes:
+      - ./wireguard/config:/config
+      - /lib/modules:/lib/modules:ro
+    networks:
+      backend:
+        ipv4_address: 172.30.0.2
+
 volumes:
   postgres_data:
   caddy_data:
   caddy_config:
+
+networks:
+  backend:
+    ipam:
+      config:
+        - subnet: 172.30.0.0/24
