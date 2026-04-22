@@ -46,6 +46,7 @@ def create_transaction(
                 getattr(request.app.state, "telegram_bot", None),
                 chat.chat_id,
                 transaction.message_text,
+                transaction.phone,
             )
 
     response.status_code = status.HTTP_201_CREATED

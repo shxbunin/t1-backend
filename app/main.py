@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import asyncio
+import logging
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -9,7 +11,9 @@ from .api.transactions import router as transactions_router
 from .config import get_settings
 from .db import Base, engine
 from . import models  # noqa: F401
-from .services.telegram import create_telegram_bot
+from .services.telegram import create_telegram_bot, create_telegram_dispatcher
+
+logger = logging.getLogger(__name__)
 
 
 def sync_schema() -> None:
@@ -22,9 +26,39 @@ async def lifespan(app: FastAPI):
     Base.metadata.create_all(bind=engine)
     sync_schema()
     app.state.telegram_bot = create_telegram_bot(get_settings().telegram_bot_token)
+    app.state.telegram_dispatcher = None
+    app.state.telegram_polling_task = None
+
+    if app.state.telegram_bot is not None:
+        dispatcher = create_telegram_dispatcher()
+        app.state.telegram_dispatcher = dispatcher
+        app.state.telegram_polling_task = asyncio.create_task(
+            dispatcher.start_polling(
+                app.state.telegram_bot,
+                handle_signals=False,
+                close_bot_session=False,
+            )
+        )
+
     try:
         yield
     finally:
+        dispatcher = app.state.telegram_dispatcher
+        polling_task = app.state.telegram_polling_task
+        if dispatcher is not None and polling_task is not None and not polling_task.done():
+            try:
+                await dispatcher.stop_polling()
+            except RuntimeError:
+                polling_task.cancel()
+
+        if polling_task is not None:
+            try:
+                await polling_task
+            except asyncio.CancelledError:
+                pass
+            except Exception:
+                logger.exception("Telegram polling stopped with error")
+
         bot = app.state.telegram_bot
         if bot is not None:
             await bot.session.close()
