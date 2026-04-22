@@ -1,12 +1,13 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException, Response, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, Response, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from ..db import get_db
-from ..models import Transaction, UidAmountSetting
+from ..models import Transaction, UidAmountSetting, UidTelegramChat
 from ..schemas import TransactionCreate, TransactionRead, UidAmountSettingRead
+from ..services.telegram import send_cancellation_notification
 
 router = APIRouter()
 
@@ -14,6 +15,8 @@ router = APIRouter()
 @router.post("/transactions", response_model=TransactionRead)
 def create_transaction(
     payload: TransactionCreate,
+    background_tasks: BackgroundTasks,
+    request: Request,
     response: Response,
     db: Session = Depends(get_db),
 ) -> Transaction:
@@ -34,6 +37,17 @@ def create_transaction(
     db.add(transaction)
     db.commit()
     db.refresh(transaction)
+
+    if transaction.is_canceled:
+        chat = db.scalar(select(UidTelegramChat).where(UidTelegramChat.uid == transaction.uid))
+        if chat is not None:
+            background_tasks.add_task(
+                send_cancellation_notification,
+                getattr(request.app.state, "telegram_bot", None),
+                chat.chat_id,
+                transaction.message_text,
+            )
+
     response.status_code = status.HTTP_201_CREATED
     return transaction
 

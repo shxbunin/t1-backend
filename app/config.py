@@ -9,6 +9,7 @@ from functools import lru_cache
 class Settings:
     app_domain: str
     app_email: str
+    telegram_bot_token: str | None
     postgres_db: str
     postgres_user: str
     postgres_password: str
@@ -32,6 +33,7 @@ def get_settings() -> Settings:
     return Settings(
         app_domain=os.getenv("APP_DOMAIN", ""),
         app_email=os.getenv("APP_EMAIL", ""),
+        telegram_bot_token=os.getenv("TELEGRAM_BOT_TOKEN") or None,
         postgres_db=postgres_db,
         postgres_user=postgres_user,
         postgres_password=postgres_password,

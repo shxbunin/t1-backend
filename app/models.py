@@ -27,3 +27,10 @@ class UidAmountSetting(Base):
 
     uid: Mapped[str] = mapped_column(Text, primary_key=True)
     amount: Mapped[int] = mapped_column(BigInteger, nullable=False)
+
+
+class UidTelegramChat(Base):
+    __tablename__ = "uid_telegram_chats"
+
+    uid: Mapped[str] = mapped_column(Text, primary_key=True)
+    chat_id: Mapped[str] = mapped_column(Text, nullable=False)

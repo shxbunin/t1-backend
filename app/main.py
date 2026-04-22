@@ -6,8 +6,10 @@ from fastapi import FastAPI
 from sqlalchemy import text
 
 from .api.transactions import router as transactions_router
+from .config import get_settings
 from .db import Base, engine
 from . import models  # noqa: F401
+from .services.telegram import create_telegram_bot
 
 
 def sync_schema() -> None:
@@ -16,10 +18,16 @@ def sync_schema() -> None:
 
 
 @asynccontextmanager
-async def lifespan(_: FastAPI):
+async def lifespan(app: FastAPI):
     Base.metadata.create_all(bind=engine)
     sync_schema()
-    yield
+    app.state.telegram_bot = create_telegram_bot(get_settings().telegram_bot_token)
+    try:
+        yield
+    finally:
+        bot = app.state.telegram_bot
+        if bot is not None:
+            await bot.session.close()
 
 
 app = FastAPI(title="Collega API", lifespan=lifespan)
