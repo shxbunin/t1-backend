@@ -4,13 +4,14 @@ import asyncio
 import logging
 
 from aiogram import Bot, Dispatcher, Router
-from aiogram.enums import ChatType
+from aiogram.enums import ChatType, ParseMode
 from aiogram.filters import Command, CommandObject
 from aiogram.types import Message, ReactionTypeEmoji
 from sqlalchemy import select
 
 from ..db import SessionLocal
 from ..models import UidAmountSetting, UidTelegramChat
+from .daily_report import collect_uid_daily_report_message, get_current_moscow_day_period
 
 logger = logging.getLogger(__name__)
 
@@ -51,8 +52,20 @@ def set_uid_amount_for_chat(chat_id: str, amount: int) -> str | None:
         return chat.uid
 
 
+def get_uid_for_chat(chat_id: str) -> str | None:
+    with SessionLocal() as db:
+        chat = db.scalar(select(UidTelegramChat).where(UidTelegramChat.chat_id == chat_id))
+        if chat is None:
+            return None
+        return chat.uid
+
+
 async def set_uid_amount_for_chat_async(chat_id: str, amount: int) -> str | None:
     return await asyncio.to_thread(set_uid_amount_for_chat, chat_id, amount)
+
+
+async def get_uid_for_chat_async(chat_id: str) -> str | None:
+    return await asyncio.to_thread(get_uid_for_chat, chat_id)
 
 
 async def add_success_reaction(message: Message) -> None:
@@ -98,6 +111,41 @@ async def handle_sum_command(message: Message, command: CommandObject) -> None:
             "Failed to add success reaction for Telegram command",
             extra={"chat_id": message.chat.id, "uid": uid},
         )
+
+
+@telegram_router.message(Command("report", ignore_case=True, ignore_mention=True))
+async def handle_report_command(message: Message) -> None:
+    if message.chat.type not in {ChatType.GROUP, ChatType.SUPERGROUP}:
+        return
+
+    chat_id = str(message.chat.id)
+
+    try:
+        uid = await get_uid_for_chat_async(chat_id)
+    except Exception:
+        logger.exception("Failed to resolve uid for Telegram report command", extra={"chat_id": message.chat.id})
+        return
+
+    if uid is None:
+        await message.answer("Чат не привязан")
+        return
+
+    try:
+        period = get_current_moscow_day_period()
+        report = await asyncio.to_thread(collect_uid_daily_report_message, uid, chat_id, period)
+    except Exception:
+        logger.exception(
+            "Failed to build daily report from Telegram command",
+            extra={"chat_id": message.chat.id, "uid": uid},
+        )
+        await message.answer("Не удалось сформировать отчет")
+        return
+
+    if report is None:
+        await message.answer("За сегодня данных нет")
+        return
+
+    await message.answer(report.text, parse_mode=ParseMode.HTML)
 
 
 async def send_cancellation_notification(
